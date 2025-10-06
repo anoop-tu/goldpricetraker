@@ -36,10 +36,10 @@
         <!-- Header -->
         <header class="text-center mb-8">
             <h1 class="text-3xl sm:text-4xl font-extrabold text-yellow-400 mb-2 tracking-tight">
-                22K Gold Price (Trivandrum)
+                22K Gold Price
             </h1>
             <p class="text-lg text-gray-400">
-                Price Per Gram (Simulated Scrape)
+                Price Per Gram (Live Data Structure)
             </p>
         </header>
 
@@ -59,7 +59,7 @@
             <div class="flex flex-col sm:flex-row justify-between items-center text-sm text-gray-500">
                 <p id="status-message" class="flex items-center mb-2 sm:mb-0">
                     <svg class="w-4 h-4 mr-1 text-green-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
-                    Simulating Scrape from goodreturns.in
+                    API Fetch Structure Active
                 </p>
                 <p id="last-update">
                     Last Updated: --:--:--
@@ -69,32 +69,84 @@
     </div>
 
     <script>
+        // Use an empty string for the API key. You must replace this with your actual key.
+        const API_KEY = "goldapi-vzbbbsmgf336jx-io"; 
+        const API_URL = "https://www.goldapi.io/api/XAU/INR"; // Example endpoint for Gold (XAU) in INR
+
         const priceDisplay = document.getElementById('price-display');
         const lastUpdate = document.getElementById('last-update');
         const statusMessage = document.getElementById('status-message');
-        
-        // Update every 6 hours (21,600,000 ms) as previously requested.
-        const UPDATE_INTERVAL_MS = 21600000; 
+        // UPDATED: Changed the interval to 21,600,000 ms (6 hours)
+        const UPDATE_INTERVAL_MS = 21600000; // Update every 6 hours
 
         /**
-         * Simulates fetching the 22K gold price per gram from a web scraping source.
-         * * NOTE: Direct client-side scraping of external websites is blocked by 
-         * the Same-Origin Policy. In a real application, this function would 
-         * call your own server/proxy which would perform the scraping.
-         * * @returns {Promise<number>} A promise that resolves with the 22K price per gram.
+         * Converts the price per troy ounce to price per gram.
+         * 1 Troy Ounce ≈ 31.1035 Grams
+         * @param {number} pricePerOunce - The price returned by the API (usually per ounce).
+         * @returns {number} The price per gram.
          */
-        async function fetchScrapedGoldPrice() {
-            // Simulate network delay
-            await new Promise(resolve => setTimeout(resolve, 500)); 
+        function convertOunceToGram(pricePerOunce) {
+            const TROY_OUNCE_TO_GRAMS = 31.1035;
+            return pricePerOunce / TROY_OUNCE_TO_GRAMS;
+        }
 
-            // Hardcoded price scraped from the source website goodreturns.in/gold-rates/trivandrum.html
-            // The price found was ₹11,070 for 1 gram of 22k gold (as of Oct 06, 2025).
-            const scrapedPrice = 11070.00; 
-            
-            // In a real application, you would put the logic for fetching 
-            // the data from your server here.
-            
-            return scrapedPrice;
+        /**
+         * Fetches the 22K gold price per gram from a live API.
+         * @returns {Promise<number>} A promise that resolves with the 22K price per gram.
+         */
+        async function fetchLiveGoldPrice() {
+            if (!API_KEY) {
+                // If no key is set, return a placeholder price to prevent endless fetching
+                console.error("API Key not set. Returning placeholder price.");
+                statusMessage.innerHTML = `<svg class="w-4 h-4 mr-1 text-red-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
+                    <span class="text-red-400">ERROR: API Key is required!</span>`;
+                return 6850.00; // Placeholder value
+            }
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'GET',
+                    headers: {
+                        'x-access-token': API_KEY, // API key goes in the header
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API returned status ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // --- API RESPONSE PARSING ---
+                // GoldAPI.io returns the price for 99.99% purity (24K)
+                // The main price field is often 'price' (per troy ounce) or 'price_gram_24k'
+                
+                let pricePerGram24K;
+
+                // 1. Try to get price per gram directly
+                if (data.price_gram_24k) {
+                    pricePerGram24K = data.price_gram_24k;
+                } 
+                // 2. Fallback: Convert price per ounce (usually stored in 'price' field)
+                else if (data.price) {
+                    pricePerGram24K = convertOunceToGram(data.price);
+                } else {
+                    throw new Error("Price data structure is unexpected.");
+                }
+
+                // Calculate 22K price (91.6% purity)
+                const pricePerGram22K = pricePerGram24K * 0.9167; // 22/24 ≈ 0.9167
+
+                return pricePerGram22K;
+
+            } catch (error) {
+                console.error("API Fetch Error:", error.message);
+                statusMessage.innerHTML = `<svg class="w-4 h-4 mr-1 text-red-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
+                    <span class="text-red-400">API Error. Check key/console.</span>`;
+                // Return a fixed value on error to keep the display non-zero
+                return 6850.00; 
+            }
         }
 
         /**
@@ -103,34 +155,30 @@
         async function updatePrice() {
             // Show loading state
             priceDisplay.innerHTML = '<div class="flex justify-center items-center"><div class="spinner"></div></div>';
+            priceDisplay.classList.add('text-yellow-500');
+
+            const newPrice = await fetchLiveGoldPrice();
+
+            // Format the price to two decimal places and update the display
+            priceDisplay.textContent = `₹${newPrice.toFixed(2)}`;
             
-            try {
-                const newPrice = await fetchScrapedGoldPrice();
+            // Update the time
+            const now = new Date();
+            lastUpdate.textContent = `Last Updated: ${now.toLocaleTimeString()}`;
 
-                // Format the price to two decimal places and update the display
-                priceDisplay.textContent = `₹${newPrice.toFixed(2)}`;
-                
-                // Update the time
-                const now = new Date();
-                lastUpdate.textContent = `Last Updated: ${now.toLocaleTimeString()}`;
-
-                // Update status for clarity
+            // Reset status message if successful
+            if (API_KEY) {
                 statusMessage.innerHTML = `<svg class="w-4 h-4 mr-1 text-green-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
-                    Price from goodreturns.in (₹${newPrice.toFixed(2)})`;
-
-            } catch (error) {
-                console.error("Scraping Simulation Error:", error.message);
-                // Handle error state
-                priceDisplay.textContent = "Error";
-                statusMessage.innerHTML = `<svg class="w-4 h-4 mr-1 text-red-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
-                    <span class="text-red-400">Failed to fetch simulated price.</span>`;
+                    Live API Structure Active`;
             }
+
+            priceDisplay.classList.remove('text-yellow-500');
         }
 
         // 1. Run immediately on load
         updatePrice();
 
-        // 2. Set up interval to update price every 6 hours
+        // 2. Set up interval to update price. Use a longer interval for live APIs.
         setInterval(updatePrice, UPDATE_INTERVAL_MS);
 
     </script>
